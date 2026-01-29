@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    
+    <style>
+      /* --- [스타일] 기본 설정 --- */
+      :root { --primary: #1a73e8; --bg: #f8f9fa; --text: #202124; --border: #dadce0; }
+      body { font-family: 'Noto Sans KR', sans-serif; background: var(--bg); margin: 0; padding: 0; color: var(--text); font-size: 13px; }
+      
+      /* 탭 네비게이션 */
+      .tab-container { position: sticky; top: 0; background: white; z-index: 10; border-bottom: 1px solid #eee; }
+      .tab { display: flex; }
+      .tab button { flex: 1; padding: 12px; background: none; border: none; border-bottom: 3px solid transparent; font-weight: 500; color: #5f6368; cursor: pointer; transition: 0.2s; }
+      .tab button.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 700; }
+      .tabcontent { display: none; padding: 15px; animation: fadeEffect 0.3s; }
+      @keyframes fadeEffect { from {opacity: 0;} to {opacity: 1;} }
+
+      /* 카드 박스 */
+      .card { background: white; border-radius: 8px; padding: 15px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #eee; }
+      .card h3 { margin: 0 0 10px 0; font-size: 15px; color: var(--primary); display: flex; align-items: center; gap: 5px; }
+      
+      /* 입력창 및 버튼 */
+      label { display: block; margin: 10px 0 4px; font-weight: 500; color: #5f6368; font-size: 12px; }
+      input, select { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 4px; box-sizing: border-box; font-size: 13px; background: #fff; transition: 0.2s; }
+      input:focus, select:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 2px rgba(26,115,232,0.1); }
+      
+      .btn-primary { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 20px; font-size: 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+      .btn-primary:hover { background: #1557b0; }
+      .btn-small { background: #e8f0fe; color: var(--primary); border: none; padding: 6px 12px; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer; margin-top: 5px; display: inline-flex; align-items: center; gap: 3px; }
+      
+      /* 유틸리티 */
+      .hidden { display: none !important; }
+      .row { display: flex; gap: 8px; }
+      .col { flex: 1; }
+      .checkbox-group { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: #f1f3f4; padding: 12px; border-radius: 6px; }
+      .checkbox-item { display: flex; align-items: center; font-size: 12px; cursor: pointer; user-select: none; }
+      .checkbox-item input { width: auto; margin-right: 8px; }
+      .current-value-info { font-size: 11px; color: #d93025; margin-left: 4px; font-weight: normal; }
+      .section-divider { border: 0; border-top: 1px solid #eee; margin: 20px 0; }
+
+      /* ★ [정산서 오버레이 스타일] ★ */
+      #settlement_overlay {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: #f0f7ff;
+        z-index: 100;
+        padding: 15px;
+        box-sizing: border-box;
+        overflow-y: auto;
+        display: none;
+      }
+      #settlement_overlay.active { display: block; animation: slideUp 0.3s; }
+      @keyframes slideUp { from {transform: translateY(100%);} to {transform: translateY(0);} }
+
+      .settle-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 2px solid #1a73e8; padding-bottom: 10px; }
+      .settle-header h2 { margin: 0; color: #1a73e8; font-size: 18px; display: flex; align-items: center; gap:5px; }
+    </style>
+  </head>
+  <body>
+    
+    <div class="tab-container">
+      <div class="tab">
+        <button class="tablinks active" onclick="openTab(event, 'Modify')">기존 정보 수정</button>
+        <button class="tablinks" onclick="openTab(event, 'Change')">세입자 변경/신규</button>
+      </div>
+    </div>
+
+    <div id="Modify" class="tabcontent" style="display: block;">
+      <div class="card">
+        <h3><i class="material-icons">edit</i>수정 대상 선택</h3>
+        <label>호수 선택</label>
+        <select id="mod_hosu" onchange="loadModData()"></select>
+        
+        <div id="mod_form_area" class="hidden" style="margin-top:20px;">
+          <label style="margin-bottom:8px;">수정할 항목 체크</label>
+          <div class="checkbox-group">
+            <label class="checkbox-item"><input type="checkbox" class="mod-chk" value="bizNum">사업자번호</label>
+            <label class="checkbox-item"><input type="checkbox" class="mod-chk" value="deposit2">임대보증금</label>
+            <label class="checkbox-item"><input type="checkbox" class="mod-chk" value="rent">월임대료</label>
+            <label class="checkbox-item"><input type="checkbox" class="mod-chk" value="period">임대기간</label>
+            <label class="checkbox-item"><input type="checkbox" class="mod-chk" value="tenant">계약자</label>
+            <label class="checkbox-item"><input type="checkbox" class="mod-chk" value="resNo">주민등록번호</label> 
+            <label class="checkbox-item"><input type="checkbox" class="mod-chk" value="phone">연락처</label>
+            <label class="checkbox-item"><input type="checkbox" class="mod-chk" value="parking">주차</label>
+            <label class="checkbox-item"><input type="checkbox" class="mod-chk" value="out">중도퇴실</label>
+            <label class="checkbox-item"><input type="checkbox" class="mod-chk" value="food">음식물카드</label>
+            <label class="checkbox-item"><input type="checkbox" class="mod-chk" value="trust">신탁동의</label>
+          </div>
+          
+          <div class="section-divider"></div>
+          
+          <form id="modForm">
+            <div id="mod_dynamic_inputs"></div>
+          </form>
+
+          <button type="button" class="btn-primary" onclick="submitModify()">수정 내역 저장</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="Change" class="tabcontent">
+      <div class="card">
+        <h3><i class="material-icons">autorenew</i>변경 대상 선택</h3>
+        <label>호수 선택</label>
+        <select id="chg_hosu" onchange="checkVacancy()"></select>
+        <div id="status_indicator" style="font-size:12px; margin-top:8px; font-weight:bold; padding:8px; background:#f1f3f4; border-radius:4px;"></div>
+        
+        <div id="exit_date_area" class="hidden">
+          <label style="color:#d93025">기존 세입자 퇴실일 (필수)</label>
+          <input type="date" id="exitDate">
+        </div>
+      </div>
+
+      <div id="new_info_area" class="card hidden">
+        <h3><i class="material-icons">add_circle_outline</i>신규 계약 정보</h3>
+        <label>계약 유형</label>
+        <select id="newType" onchange="renderNewForm()">
+          <option value="" disabled selected>선택하세요</option>
+          <option value="월세(선불)">월세(선불)</option>
+          <option value="월세(후불)">월세(후불)</option>
+          <option value="전세">전세</option>
+          <option value="매매">매매</option>
+          <option value="공실">공실 (비우기)</option>
+        </select>
+
+        <form id="changeForm">
+          <div id="chg_dynamic_inputs" style="margin-top:15px;"></div>
+        </form>
+        
+        <button type="button" class="btn-primary" onclick="submitChange()">변경 적용하기</button>
+      </div>
+    </div>
+
+
+    <div id="settlement_overlay">
+      <div class="settle-header">
+        <h2><i class="material-icons">calculate</i> 퇴실 정산서 작성</h2>
+        <button onclick="closeSettlement()" style="font-size:20px; border:none; background:none; cursor:pointer;">✕</button>
+      </div>
+      
+      <div class="card">
+        <p id="settle_info_msg" style="color:#1a73e8; font-weight:bold; margin-bottom:10px;"></p>
+        
+        <h4 style="margin:5px 0;">🔵 임차인 반환금</h4>
+        <label>임대 보증금</label>
+        <input type="text" id="set_deposit" placeholder="0" oninput="formatMoney(this); calcTotalRefund()">
+        
+        <div id="prepaid_rent_area" class="hidden" style="margin-top:5px; padding:5px; background:#e8f0fe; border-radius:4px;">
+           <label style="color:#1a73e8;">(+) 선불 임대료 반환</label>
+           <input type="text" id="set_refund_prepaid" placeholder="0" oninput="formatMoney(this); calcTotalRefund()">
+        </div>
+
+        <div class="section-divider"></div>
+
+        <h4 style="margin:5px 0;">🔴 공제 내역</h4>
+        
+        <label>임대료 정산 <span id="rent_period_hint" style="font-size:11px; color:#666;"></span></label>
+        <div class="row">
+          <div class="col" style="flex:2"><input type="text" id="set_rent_deduct" placeholder="금액" oninput="formatMoney(this); calcTotalRefund()"></div>
+          <div class="col" style="flex:3"><input type="text" id="set_rent_period" placeholder="기간 (yy/mm/dd~)"></div>
+        </div>
+
+        <label>관리비 정산 <span id="maint_period_hint" style="font-size:11px; color:#666;"></span></label>
+        <div class="row">
+          <div class="col" style="flex:2"><input type="text" id="set_maint_deduct" placeholder="금액" oninput="formatMoney(this); calcTotalRefund()"></div>
+          <div class="col" style="flex:3"><input type="text" id="set_maint_period" placeholder="기간"></div>
+        </div>
+
+        <label style="margin-top:10px;">공과금 정산 방식</label>
+        <div class="checkbox-group" style="grid-template-columns: 1fr 1fr; margin-bottom:5px;">
+           <label class="checkbox-item"><input type="radio" name="util_method" value="direct" onclick="toggleUtilInput(false)" checked>직접 정산</label>
+           <label class="checkbox-item"><input type="radio" name="util_method" value="office" onclick="toggleUtilInput(true)">관리실 정산</label>
+        </div>
+        
+        <div id="util_inputs" class="hidden">
+           <div class="row">
+             <div class="col">
+               <label>전기 <span id="util_elec_period" style="font-size:10px; color:#666;"></span></label>
+               <input type="text" id="util_elec" oninput="formatMoney(this); calcTotalRefund()">
+             </div>
+             <div class="col">
+               <label>가스 <span id="util_gas_period" style="font-size:10px; color:#666;"></span></label>
+               <input type="text" id="util_gas" oninput="formatMoney(this); calcTotalRefund()">
+             </div>
+           </div>
+           <div class="row" style="margin-top:5px;">
+             <div class="col">
+               <label>수도 <span id="util_water_period" style="font-size:10px; color:#666;"></span></label>
+               <input type="text" id="util_water" oninput="formatMoney(this); calcTotalRefund()">
+             </div>
+           </div>
+        </div>
+
+        <label style="margin-top:10px;">부동산 수수료</label>
+        <select id="broker_opt" onchange="calcBrokerFee()">
+           <option value="none">없음</option>
+           <option value="direct">직접 정산 (입력)</option>
+           <option value="office">관리실 정산 (자동계산)</option>
+        </select>
+        <input type="text" id="set_broker_fee" class="hidden" placeholder="수수료 금액" oninput="formatMoney(this); calcTotalRefund()" style="margin-top:5px; font-weight:bold; color:#1a73e8;">
+
+        <label style="margin-top:10px;">하자보수 및 기타</label>
+        <div class="checkbox-group">
+           <label class="checkbox-item"><input type="checkbox" id="chk_clean" onchange="toggleFixCost('clean', 300000)">청소비 (30만)</label>
+           <label class="checkbox-item"><input type="checkbox" id="chk_filter" onchange="toggleFixCost('filter', 30000)">필터 (3만)</label>
+        </div>
+        <div id="as_list"></div> <button type="button" class="btn-small" onclick="addAsItem()">+ A/S 항목 추가</button>
+
+        <label style="margin-top:10px;">유보금 (10만)</label>
+        <input type="text" id="set_retained" value="100,000" oninput="formatMoney(this); calcTotalRefund()">
+
+        <div class="section-divider"></div>
+
+        <h4 style="margin:5px 0;">📝 계좌 및 인수</h4>
+        <label>임차인 계좌</label>
+        <div class="row">
+           <div class="col" style="flex:1">
+             <select id="bank_name">
+               <option value="우리">우리</option><option value="국민">국민</option><option value="신한">신한</option><option value="하나">하나</option><option value="농협">농협</option><option value="기업">기업</option><option value="카카오">카카오</option><option value="토스">토스</option>
+             </select>
+           </div>
+           <div class="col" style="flex:2"><input type="text" id="bank_account" placeholder="계좌번호"></div>
+        </div>
+        <input type="text" id="bank_owner" placeholder="예금주" style="margin-top:5px;">
+
+        <label style="margin-top:10px;">인수 여부 확인 (체크=O)</label>
+        <div class="checkbox-group" style="grid-template-columns: 1fr 1fr;">
+           <label class="checkbox-item"><input type="checkbox" id="chk_key" checked>카드키</label>
+           <label class="checkbox-item"><input type="checkbox" id="chk_food" checked>음식물카드</label>
+           <label class="checkbox-item"><input type="checkbox" id="chk_air" checked>에어컨리모컨</label>
+           <label class="checkbox-item"><input type="checkbox" id="chk_heat" checked>전열리모컨</label>
+           <label class="checkbox-item"><input type="checkbox" id="chk_kt" checked>KT셋탑</label>
+        </div>
+
+        <div class="section-divider"></div>
+
+        <div style="background:#fff2cc; padding:10px; border-radius:4px; text-align:center;">
+           <label style="margin:0; font-weight:bold;">정산 총액 (공제 합계)</label>
+           <div id="disp_deduct_total" style="font-size:16px; font-weight:bold; color:#d93025;">0</div>
+           <hr style="border-top:1px dashed #ccc; margin:5px 0;">
+           <label style="margin:0; font-weight:bold;">최종 반환 금액</label>
+           <div id="disp_final_refund" style="font-size:20px; font-weight:bold; color:#1a73e8;">0</div>
+        </div>
+
+        <button type="button" class="btn-primary" onclick="requestSettlementDownload(event)">🖨️ 정산서 생성/다운로드</button>
+      </div>
+    </div>
+
+
+    <script>
+      // --- 전역 변수 ---
+      let roomDataList = [];
+      let currentRoomStatus = {}; 
+      let settlementBaseInfo = {}; 
+      
+      // --- 초기화 ---
+      document.addEventListener('DOMContentLoaded', function() {
+        console.log("Sidebar initialized");
+        google.script.run
+          .withSuccessHandler(initRooms)
+          .withFailureHandler(function(err){ alert("초기화 실패: " + err); })
+          .getRoomListAndStatus();
+      });
+
+      function initRooms(list) {
+        roomDataList = list;
+        const modSel = document.getElementById("mod_hosu");
+        const chgSel = document.getElementById("chg_hosu");
+        
+        modSel.innerHTML = '<option value="">선택하세요</option>';
+        chgSel.innerHTML = '<option value="">선택하세요</option>';
+
+        list.forEach(r => {
+          modSel.add(new Option(r.hosu, r.hosu));
+          chgSel.add(new Option(r.hosu, r.hosu));
+          currentRoomStatus[r.hosu] = r.isVacancy;
+        });
+      }
+
+      function openTab(evt, tabName) {
+        document.querySelectorAll(".tabcontent").forEach(el => el.style.display = "none");
+        document.querySelectorAll(".tablinks").forEach(el => el.classList.remove("active"));
+        document.getElementById(tabName).style.display = "block";
+        if(evt) evt.currentTarget.classList.add("active");
+      }
+
+      // ==========================================
+      // [공통 유틸리티] 포맷팅 함수들
+      // ==========================================
+      
+      function formatMoney(input) {
+        let value = input.value.replace(/[^0-9]/g, '');
+        if(value) input.value = Number(value).toLocaleString();
+        else input.value = '';
+      }
+
+      function formatPhone(input) {
+        let value = input.value.replace(/[^0-9]/g, '');
+        let formatted = '';
+        if (value.length < 4) formatted = value;
+        else if (value.length < 7) formatted = value.substr(0, 3) + '-' + value.substr(3);
+        else if (value.length < 11) formatted = value.substr(0, 3) + '-' + value.substr(3, 3) + '-' + value.substr(6);
+        else formatted = value.substr(0, 3) + '-' + value.substr(3, 4) + '-' + value.substr(7);
+        input.value = formatted;
+      }
+
+      function formatBiz(input) {
+        let value = input.value.replace(/[^0-9]/g, '');
+        let formatted = '';
+        if (value.length < 4) formatted = value;
+        else if (value.length < 6) formatted = value.substr(0, 3) + '-' + value.substr(3);
+        else formatted = value.substr(0, 3) + '-' + value.substr(3, 2) + '-' + value.substr(5);
+        input.value = formatted;
+      }
+
+      function addSimpleInput(parentId, className, ph) {
+        const div = document.createElement("input");
+        div.type = "text";
+        div.className = className;
+        div.placeholder = ph;
+        div.style.marginTop = "5px";
+        document.getElementById(parentId).appendChild(div);
+      }
+
+      function toggleBizNameChg(el) {
+        const nameInput = document.getElementById("chg_bizName");
+        if(el.value.length > 0) nameInput.classList.remove("hidden");
+        else nameInput.classList.add("hidden");
+      }
+
+      function toggleBizNameMod(el) {
+        const nameInput = document.getElementById("mod_bizName");
+        if(el.value.length > 0) nameInput.classList.remove("hidden");
+        else nameInput.classList.add("hidden");
+      }
+
+      // ==========================================
+      // [기능 1] 수정하기 (Modify)
+      // ==========================================
+      
+      function loadModData() {
+        const hosu = document.getElementById("mod_hosu").value;
+        if(!hosu) return;
+        
+        google.script.run
+          .withSuccessHandler(data => {
+            if(!data) return alert("데이터 없음");
+            window.modCurrentData = data; 
+            document.getElementById("mod_form_area").classList.remove("hidden");
+            document.querySelectorAll('.mod-chk').forEach(c => c.checked = false);
+            document.getElementById("mod_dynamic_inputs").innerHTML = "";
+          })
+          .withFailureHandler(err => alert("불러오기 실패: " + err))
+          .getRoomDetail(hosu);
+      }
+
+      document.querySelectorAll('.mod-chk').forEach(chk => {
+        chk.addEventListener('change', renderModInputs);
+      });
+
+      function renderModInputs() {
+        const container = document.getElementById("mod_dynamic_inputs");
+        container.innerHTML = "";
+        const data = window.modCurrentData; 
+        
+        // [수정] M열(주민번호, 인덱스12) 추가 및 인덱스 조정
+        const idxMap = {
+          'bizNum': 2, 'deposit2': 5, 'rent': 6, 'parking': 7, 
+          'food': 8, 'period': 9, 'tenant': 11, 
+          'resNo': 12,  // ★ [신규] 주민번호 (M열)
+          'phone': 13,  // 기존 12 -> 13 (N열)
+          'trust': 14,  // 기존 13 -> 14 (O열)
+          'out': 15     // 기존 14 -> 15 (P열)
+        };
+
+        const checkedBoxes = document.querySelectorAll('.mod-chk:checked');
+        
+        checkedBoxes.forEach(chk => {
+          const key = chk.value;
+          const currentVal = data[idxMap[key]] || "";
+          
+          let html = `<div style="margin-bottom:15px; border-left:3px solid var(--primary); padding-left:12px;">`;
+          
+          switch(key) {
+            case 'period': 
+              html += `
+                <label>임대기간 <span class="current-value-info">(현재: ${currentVal})</span></label>
+                <div class="row">
+                  <div class="col"><input type="date" class="mod-period-start"></div>
+                  <div class="col"><input type="date" class="mod-period-end"></div>
+                </div>`;
+              break;
+
+            case 'parking': 
+              html += `
+                <label>주차번호 <span class="current-value-info">(현재: ${currentVal})</span></label>
+                <div id="mod_parking_list">
+                  <input type="text" class="mod-parking-item" placeholder="차량번호 입력">
+                </div>
+                <button type="button" class="btn-small" onclick="addSimpleInput('mod_parking_list', 'mod-parking-item', '차량번호')">+ 추가</button>
+              `;
+              break;
+
+            case 'tenant':
+              html += `
+                <label>계약자 <span class="current-value-info">(현재: ${currentVal})</span></label>
+                <div id="mod_tenant_list">
+                  <input type="text" class="mod-tenant-item" placeholder="이름 입력">
+                </div>
+                <button type="button" class="btn-small" onclick="addSimpleInput('mod_tenant_list', 'mod-tenant-item', '이름')">+ 추가</button>
+              `;
+              break;
+            
+            case 'bizNum':
+              html += `
+                <label>사업자정보 <span class="current-value-info">(현재: ${currentVal})</span></label>
+                <div class="row">
+                  <div class="col"><input type="text" id="mod_bizNum" placeholder="사업자번호" oninput="toggleBizNameMod(this); formatBiz(this)"></div>
+                  <div class="col"><input type="text" id="mod_bizName" placeholder="상호명" class="hidden"></div>
+                </div>
+              `;
+              break;
+
+            case 'food':
+            case 'trust':
+            case 'out':
+              const labelMap = {'food':'음식물카드', 'trust':'신탁동의', 'out':'중도퇴실'};
+              html += `
+                <label>${labelMap[key]} <span class="current-value-info">(현재: ${currentVal})</span></label>
+                <select class="mod-select-${key}">
+                  <option value="">선택하세요</option>
+                  <option value="O">O (있음/지급)</option>
+                  <option value="X">X (없음/미지급)</option>
+                </select>
+              `;
+              break;
+
+            default: 
+              const labels = {'deposit2':'보증금', 'rent':'월세', 'phone':'연락처', 'resNo':'주민등록번호'};
+              let onInputAttr = "";
+              let displayVal = currentVal;
+
+              if(key === 'deposit2' || key === 'rent') {
+                 onInputAttr = 'oninput="formatMoney(this)"';
+                 if(displayVal && !isNaN(displayVal.toString().replace(/,/g, ''))) {
+                   displayVal = Number(displayVal.toString().replace(/,/g, '')).toLocaleString();
+                 }
+              } else if(key === 'phone') {
+                 onInputAttr = 'oninput="formatPhone(this)"';
+              }
+
+              html += `
+                <label>${labels[key] || key} <span class="current-value-info">(현재: ${currentVal})</span></label>
+                <input type="text" class="mod-input-${key}" value="${displayVal}" ${onInputAttr}>
+              `;
+          }
+          html += `</div>`;
+          container.insertAdjacentHTML('beforeend', html);
+        });
+      }
+
+      function submitModify() {
+        const hosu = document.getElementById("mod_hosu").value;
+        if(!hosu) return alert("호수를 선택하세요.");
+
+        let formData = { hosu: hosu };
+        const checkedBoxes = document.querySelectorAll('.mod-chk:checked');
+        if(checkedBoxes.length === 0) return alert("수정할 항목을 하나 이상 체크하세요.");
+
+        checkedBoxes.forEach(chk => {
+          const key = chk.value;
+          
+          if (key === 'period') {
+            const s = document.querySelector('.mod-period-start').value;
+            const e = document.querySelector('.mod-period-end').value;
+            if(s && e) formData.period = `${s} ~ ${e}`;
+          } 
+          else if (key === 'parking') {
+            const arr = Array.from(document.querySelectorAll('.mod-parking-item')).map(i=>i.value).filter(v=>v);
+            formData.parking = arr.join(", ");
+          } 
+          else if (key === 'tenant') {
+            const arr = Array.from(document.querySelectorAll('.mod-tenant-item')).map(i=>i.value).filter(v=>v);
+            formData.tenant = arr.join(", ");
+          }
+          else if (key === 'bizNum') {
+            const num = document.getElementById('mod_bizNum').value;
+            const name = document.getElementById('mod_bizName').value;
+            formData.bizNum = num;       
+            if(name) {
+                formData.bizName = name; 
+            }
+          }
+          else if (['food', 'trust', 'out'].includes(key)) {
+            formData[key] = document.querySelector(`.mod-select-${key}`).value;
+          }
+          else {
+            let val = document.querySelector(`.mod-input-${key}`).value;
+            if(key === 'deposit2' || key === 'rent') {
+               val = val.replace(/,/g, ''); 
+            }
+            formData[key] = val;
+          }
+        });
+
+        google.script.run
+          .withSuccessHandler(alert)
+          .withFailureHandler(err => alert("수정 실패: " + err))
+          .updateRentalInfo(formData);
+      }
+
+
+      // ==========================================
+      // [기능 2] 변경하기 (Change)
+      // ==========================================
+      
+      function checkVacancy() {
+        const hosu = document.getElementById("chg_hosu").value;
+        const isVacant = currentRoomStatus[hosu];
+        const indicator = document.getElementById("status_indicator");
+        const exitArea = document.getElementById("exit_date_area");
+        const newInfoArea = document.getElementById("new_info_area");
+
+        if(!hosu) { newInfoArea.classList.add("hidden"); return; }
+        
+        newInfoArea.classList.remove("hidden");
+        if(isVacant) {
+          indicator.innerText = "ℹ️ 현재 상태: 공실 (퇴실일 입력 불필요)";
+          indicator.style.color = "#1a73e8"; 
+          exitArea.classList.add("hidden");
+        } else {
+          indicator.innerText = "⚠️ 현재 상태: 세입자 있음 (퇴실일 필수)";
+          indicator.style.color = "#d93025"; 
+          exitArea.classList.remove("hidden");
+        }
+      }
+
+      function renderNewForm() {
+        const type = document.getElementById("newType").value;
+        const container = document.getElementById("chg_dynamic_inputs");
+        container.innerHTML = "";
+
+        // 1. 공실 선택 시
+        if(type === '공실') {
+          container.innerHTML = "<p style='color:#666;'>해당 호수를 '공실' 상태로 초기화합니다.</p>";
+          return;
+        }
+
+        // 2. 기본 입력폼 (계약자, 주민번호, 사업자, 연락처 등)
+        let html = `
+          <label>계약자</label>
+          <div id="chg_tenant_list">
+            <input type="text" class="chg-tenant-item" placeholder="이름 입력">
+          </div>
+          <button type="button" class="btn-small" onclick="addSimpleInput('chg_tenant_list', 'chg-tenant-item', '이름')">+ 추가</button>
+          
+          <label style="margin-top:10px;">주민등록번호</label>
+          <input type="text" id="chg_resNo" placeholder="주민번호 (ex. 900101-1234567)">
+        `;
+
+        // 전세가 아닐 경우 사업자 정보 입력창 표시
+        if(type !== '전세') {
+          html += `
+            <label>사업자정보</label>
+            <div class="row">
+              <div class="col"><input type="text" id="chg_bizNum" placeholder="사업자번호" oninput="toggleBizNameChg(this); formatBiz(this)"></div>
+              <div class="col"><input type="text" id="chg_bizName" placeholder="상호명" class="hidden"></div>
+            </div>
+          `;
+        }
+
+        html += `<label>연락처</label><input type="text" id="chg_phone" oninput="formatPhone(this)" placeholder="010-0000-0000">`;
+
+        // 매매일 경우 잔금일, 그 외에는 임대기간
+        if(type === '매매') {
+          html += `<label>잔금일</label><input type="date" id="chg_balanceDate">`;
+        } else {
+          html += `
+            <label>임대기간</label>
+            <div class="row">
+              <div class="col"><input type="date" id="chg_periodStart"></div>
+              <div class="col"><input type="date" id="chg_periodEnd"></div>
+            </div>
+          `;
+        }
+
+        // 보증금/월세 입력창 (유형별 분기)
+        if(type.includes("월세")) {
+          html += `<label>보증금</label><input type="text" id="chg_deposit2" oninput="formatMoney(this)">`;
+          html += `<label>월임대료</label><input type="text" id="chg_rent" oninput="formatMoney(this)">`;
+        } else if(type === '전세') {
+          html += `<label>전세보증금</label><input type="text" id="chg_deposit1" oninput="formatMoney(this)">`;
+        }
+
+        // 3. 하단 옵션 (주차, 음식물, 신탁, 중도퇴실)
+        html += `
+          <label>주차</label>
+          <div id="chg_parking_list">
+            <input type="text" class="chg-parking-item" placeholder="차량번호">
+          </div>
+          <button type="button" class="btn-small" onclick="addSimpleInput('chg_parking_list', 'chg-parking-item', '차량번호')">+ 추가</button>
+
+          <div class="row" style="margin-top:15px;">
+            
+            <div class="col">
+              <label>음식물</label>
+              <select id="chg_food">
+                <option value="O" selected>O</option>
+                <option value="X">X</option>
+              </select>
+            </div>
+
+            <div class="col">
+              <label>신탁</label>
+              <select id="chg_trust">
+                <option value="X" selected>X</option>
+                <option value="O">O</option>
+                <option value="">-</option>
+              </select>
+            </div>
+
+            <div class="col">
+              <label>중도퇴실</label>
+              <select id="chg_out">
+                <option value="X" selected>X</option>
+                <option value="O">O</option>
+                <option value="">-</option>
+              </select>
+            </div>
+
+          </div>
+        `;
+
+        container.innerHTML = html;
+      }
+
+      function submitChange() {
+        const hosu = document.getElementById("chg_hosu").value;
+        const newType = document.getElementById("newType").value;
+        if(!hosu || !newType) return alert("필수 항목 누락: 호수 또는 유형을 선택하세요.");
+
+        const isVacant = currentRoomStatus[hosu];
+        const exitDate = document.getElementById("exitDate").value;
+        if(!isVacant && !exitDate) return alert("기존 세입자의 퇴실일을 입력하세요.");
+
+        let formData = { hosu, newType, isPreviouslyVacant: isVacant, exitDate };
+
+        if(newType !== '공실') {
+          const tenants = Array.from(document.querySelectorAll('.chg-tenant-item')).map(i=>i.value).filter(v=>v);
+          if(tenants.length === 0) return alert("계약자 이름을 입력하세요.");
+          formData.tenantFinal = tenants.join(", "); 
+          
+          const bizNum = document.getElementById("chg_bizNum") ? document.getElementById("chg_bizNum").value : "";
+          const bizName = document.getElementById("chg_bizName") ? document.getElementById("chg_bizName").value : "";
+          
+          if(bizNum) {
+             formData.bizNum = bizNum; 
+          }
+
+          if(bizName) {
+             if(formData.tenantFinal) {
+                 formData.tenantFinal = formData.tenantFinal + `(${bizName})`;
+             }
+          }
+
+          const parkings = Array.from(document.querySelectorAll('.chg-parking-item')).map(i=>i.value).filter(v=>v);
+          formData.parking = parkings.join(", ");
+
+          if(newType === '매매') {
+             formData.balanceDate = document.getElementById("chg_balanceDate").value;
+          } else {
+             const s = document.getElementById("chg_periodStart").value;
+             const e = document.getElementById("chg_periodEnd").value;
+             if(s && e) {
+               formData.periodStart = s;
+               formData.periodEnd = e;
+             }
+          }
+
+          if(document.getElementById("chg_deposit1")) formData.deposit1 = document.getElementById("chg_deposit1").value.replace(/,/g, '');
+          if(document.getElementById("chg_deposit2")) formData.deposit2 = document.getElementById("chg_deposit2").value.replace(/,/g, '');
+          if(document.getElementById("chg_rent")) formData.rent = document.getElementById("chg_rent").value.replace(/,/g, '');
+          
+          // ★ [추가] 주민번호 및 연락처
+          if(document.getElementById("chg_resNo")) formData.resNo = document.getElementById("chg_resNo").value;
+          if(document.getElementById("chg_phone")) formData.phone = document.getElementById("chg_phone").value;
+          
+          formData.food = document.getElementById("chg_food").value;
+          formData.trust = document.getElementById("chg_trust").value;
+          formData.out = document.getElementById("chg_out").value;
+        }
+
+        if(!confirm("변경하시겠습니까? (주의: 기존 데이터는 퇴실 처리됩니다)")) return;
+        
+        google.script.run
+          .withSuccessHandler(function(res) {
+            alert(res.message); 
+            
+            const isTenantChanged = (res.oldTenant && res.newTenant && res.oldTenant.trim() !== res.newTenant.trim());
+
+            if (!res.isPreviouslyVacant && isTenantChanged) {
+              if(confirm(`세입자가 변경되었습니다.\n이어서 '${res.hosu}호' 퇴실 정산서를 작성하시겠습니까?`)) {
+                 openSettlementOverlay(res.hosu, res.oldDeposit, res.exitDate, res);
+              } else {
+                 location.reload();
+              }
+            } else {
+              location.reload();
+            }
+          })
+          .withFailureHandler(err => alert("변경 실패: " + err))
+          .changeRentalStatus(formData);
+      }
+
+
+      // ==========================================
+      // [기능 3] 정산서 오버레이 로직
+      // ==========================================
+      
+      let settlementBaseInfoData = {}; 
+
+      // 1. 오버레이 열기/닫기
+      function openSettlementOverlay(hosu, oldDeposit, exitDate, newInfoObj = null) {
+        const overlay = document.getElementById("settlement_overlay");
+        overlay.classList.add("active");
+        overlay.dataset.hosu = hosu;
+        document.getElementById("settle_info_msg").innerText = `${hosu}호 (${exitDate} 퇴실)`;
+
+        document.getElementById("set_deposit").value = "계산 중...";
+        
+        // 서버에 계산 요청 (newInfoObj도 함께 전달)
+        google.script.run
+          .withSuccessHandler(initSettlementForm)
+          .withFailureHandler(err => alert("계산 실패: " + err))
+          .getSettlementCalcData(hosu, exitDate, newInfoObj);
+      }
+      
+      function closeSettlement() {
+        document.getElementById("settlement_overlay").classList.remove("active");
+        location.reload();
+      }
+
+      // 2. 초기 데이터 세팅
+      function initSettlementForm(data) {
+        settlementBaseInfo = data; 
+        
+        // 보증금
+        setVal("set_deposit", data.info.deposit);
+        
+        // 선불 임대료 반환
+        var refundVal = data.rent.prepaidRefund || data.rent.prepaid || 0;
+
+        if (refundVal > 0) { 
+           document.getElementById("prepaid_rent_area").classList.remove("hidden");
+           setVal("set_refund_prepaid", refundVal);
+        } else {
+           document.getElementById("prepaid_rent_area").classList.add("hidden");
+           setVal("set_refund_prepaid", 0);
+        }
+
+        // 임대료 공제 (기존 세입자 기준)
+        setVal("set_rent_deduct", data.rent.amount);
+        document.getElementById("set_rent_period").value = data.rent.period;
+        
+        // 관리비 공제
+        setVal("set_maint_deduct", data.maint.amount);
+        document.getElementById("set_maint_period").value = data.maint.period;
+
+        // 유보금 기본값
+        setVal("set_retained", 100000);
+        
+        // 공과금 기간 표시
+        const exitDateShort = data.date.substring(2); 
+        if(document.getElementById("util_elec_period")) document.getElementById("util_elec_period").innerText = "~ " + exitDateShort;
+        if(document.getElementById("util_gas_period")) document.getElementById("util_gas_period").innerText = "~ " + exitDateShort;
+        if(document.getElementById("util_water_period")) document.getElementById("util_water_period").innerText = "~ " + exitDateShort;
+
+        // 총액 계산
+        calcTotalRefund();
+      }
+
+      // 3. UI 동적 제어 및 계산
+      
+      function calcBrokerFee() {
+        const opt = document.getElementById("broker_opt").value;
+        const input = document.getElementById("set_broker_fee");
+        
+        // 1. 옵션 확인 (없음/직접입력 처리)
+        if (opt === 'none') {
+          input.classList.add("hidden");
+          input.value = 0;
+          calcTotalRefund();
+          return;
+        } else if (opt === 'direct') {
+          input.classList.remove("hidden");
+          input.value = "";
+          input.placeholder = "직접 입력";
+          calcTotalRefund();
+          return;
+        }
+        
+        // [관리실 정산 - 자동계산 로직 시작]
+        input.classList.remove("hidden");
+        
+        // 2. 데이터 가져오기
+        const info = settlementBaseInfo.info || {};    
+        const newInfo = settlementBaseInfo.newInfo || {}; 
+        
+        // 3. 금액 결정 (무조건 신규 세입자 금액 우선!)
+        let deposit = 0;
+        let rent = 0;
+
+        if (newInfo.newDeposit !== undefined && String(newInfo.newDeposit).trim() !== "") {
+            deposit = Number(String(newInfo.newDeposit).replace(/,/g, ''));
+            rent = Number(String(newInfo.newRent || 0).replace(/,/g, ''));
+        } else {
+            // 신규 정보가 없으면 기존 정보 사용
+            deposit = Number(String(info.deposit || 0).replace(/,/g, ''));
+            rent = Number(String(info.rent || 0).replace(/,/g, ''));
+        }
+
+        // 4. 용도 및 계약 형태 확인
+        const bizType = String(newInfo.fixedBizType || info.bizType || "도시형생활주택"); 
+        const rentType = String(newInfo.newType || info.type || "");
+
+        console.log(`[계산 기준] 건물:${bizType}, 유형:${rentType}, 보증금:${deposit}, 월세:${rent}`);
+
+        // 5. 정밀 계산 로직
+        let pureFee = 0; 
+        const baseAmount = deposit + (rent * 100); 
+
+        // CASE 1: 근린생활시설 (0.9%)
+        if (bizType.includes("근린") || bizType.includes("상가")) {
+            pureFee = (baseAmount * 9) / 1000; 
+        }
+        // CASE 2 & 3: 오피스텔 (0.4%)
+        else if (bizType.includes("오피스텔")) {
+            if (rentType.includes("전세")) {
+                pureFee = (deposit * 4) / 1000;
+            } else {
+                pureFee = (baseAmount * 4) / 1000;
+            }
+        }
+        // CASE 4 & 5: 도시형생활주택 (0.3%)
+        else {
+            if (rentType.includes("전세")) {
+                pureFee = (deposit * 3) / 1000;
+            } else {
+                pureFee = (baseAmount * 3) / 1000;
+            }
+        }
+
+        // 6. 부가세 계산
+        pureFee = Math.floor(pureFee);
+        const vat = Math.floor(pureFee / 10); 
+        const totalFee = pureFee + vat;
+
+        // 7. 결과값 입력
+        setVal("set_broker_fee", totalFee);
+        calcTotalRefund();
+      }
+
+      // 총 반환금 계산
+      function calcTotalRefund() {
+        const getV = (id) => Number(document.getElementById(id).value.replace(/,/g, '')) || 0;
+        
+        const asset = getV("set_deposit") + getV("set_refund_prepaid");
+        
+        let deduct = getV("set_rent_deduct") + getV("set_maint_deduct");
+        
+        if(document.querySelector('input[name="util_method"]:checked').value === 'office') {
+           deduct += getV("util_elec") + getV("util_gas") + getV("util_water");
+        }
+        
+        deduct += getV("set_broker_fee");
+        deduct += (document.getElementById("chk_clean").checked ? 300000 : 0);
+        deduct += (document.getElementById("chk_filter").checked ? 30000 : 0);
+        deduct += getV("set_retained");
+        
+        document.querySelectorAll(".as-amount").forEach(el => {
+           deduct += (Number(el.value.replace(/,/g,'')) || 0);
+        });
+
+        document.getElementById("disp_deduct_total").innerText = deduct.toLocaleString();
+        document.getElementById("disp_final_refund").innerText = (asset - deduct).toLocaleString();
+      }
+
+      // UI 토글 (공과금)
+      function toggleUtilInput(show) {
+         const div = document.getElementById("util_inputs");
+         if(show) div.classList.remove("hidden"); else div.classList.add("hidden");
+         calcTotalRefund();
+      }
+      
+      // UI 토글 (고정비용)
+      function toggleFixCost(type, amount) { calcTotalRefund(); }
+      
+      // UI 추가 (AS 항목)
+      function addAsItem() {
+         const div = document.createElement("div");
+         div.className = "row"; div.style.marginTop = "5px";
+         div.innerHTML = `<div class="col" style="flex:2"><input type="text" class="as-name" placeholder="하자 내용"></div><div class="col" style="flex:1"><input type="text" class="as-amount" placeholder="금액" oninput="formatMoney(this); calcTotalRefund()"></div>`;
+         document.getElementById("as_list").appendChild(div);
+      }
+      
+      function setVal(id, val) { document.getElementById(id).value = Number(val).toLocaleString(); }
+
+      // 4. 데이터 전송 (다운로드 요청)
+      function requestSettlementDownload(event) {
+         const getV = (id) => document.getElementById(id).value;
+         
+         const data = {
+           hosu: settlementBaseInfo.hosu,
+           date: settlementBaseInfo.date, 
+           rentType: settlementBaseInfo.info.type,
+           deposit: getV("set_deposit"),
+           prepaidRefund: getV("set_refund_prepaid"),
+           rent: { amount: getV("set_rent_deduct"), period: getV("set_rent_period") },
+           maint: { amount: getV("set_maint_deduct"), period: getV("set_maint_period") },
+           utils: { elec: getV("util_elec"), gas: getV("util_gas"), water: getV("util_water") },
+           brokerFee: getV("set_broker_fee"),
+           repair: {
+               clean: document.getElementById("chk_clean").checked ? "300,000" : "",
+               filter: document.getElementById("chk_filter").checked ? "30,000" : "",
+               asItems: []
+           },
+           retained: getV("set_retained"),
+           totalDeduct: document.getElementById("disp_deduct_total").innerText,
+           finalRefund: document.getElementById("disp_final_refund").innerText,
+           bank: { name: document.getElementById("bank_name").value, account: getV("bank_account"), owner: getV("bank_owner") },
+           checks: {
+               key: document.getElementById("chk_key").checked,
+               food: document.getElementById("chk_food").checked,
+               air: document.getElementById("chk_air").checked,
+               heat: document.getElementById("chk_heat").checked,
+               kt: document.getElementById("chk_kt").checked
+           }
+         };
+         
+         document.querySelectorAll("#as_list .row").forEach(row => {
+            data.repair.asItems.push({ name: row.querySelector(".as-name").value, amount: row.querySelector(".as-amount").value });
+         });
+
+         const btn = event.target;
+         btn.disabled = true; btn.innerText = "⏳ 생성 중...";
+         
+         google.script.run
+           .withSuccessHandler(url => {
+              window.open(url, '_blank');
+              closeSettlement();
+           })
+           .withFailureHandler(err => {
+              alert("생성 실패: " + err);
+              btn.disabled = false; btn.innerText = "🖨️ 정산서 생성/다운로드";
+           })
+           .createSettlementExcel(data);
+      }
+    </script>
+  </body>
+</html>
